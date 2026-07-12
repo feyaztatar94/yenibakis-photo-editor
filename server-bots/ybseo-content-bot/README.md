@@ -14,7 +14,9 @@ Kaynak metinler doğrudan çevrilmez veya kopyalanmaz. Bot çok kaynaklı araşt
 ## Güvenlik ve kalite
 
 - En az iki araştırma kaynağı
-- En az 650 kelime
+- Benzer anahtar kelimeli kaynak yazıların eşleştirilmesi
+- Kaynak makale gövdelerinin çok kaynaklı Türkçe sentezi
+- En az 1.500 kelime
 - Otomatik genişletme ve bölüm bazlı zenginleştirme
 - H2 bölüm ve kaynak bağlantısı kontrolleri
 - Başarısız içeriklerin yayımlanmaması

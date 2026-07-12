@@ -28,7 +28,7 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 MIN_DAYS = int(os.getenv("MIN_DAYS", "3"))
 MAX_DAYS = int(os.getenv("MAX_DAYS", "5"))
-MIN_WORDS = int(os.getenv("MIN_WORDS", "650"))
+MIN_WORDS = int(os.getenv("MIN_WORDS", "1500"))
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
 DATA_DIR = Path(os.getenv("DATA_DIR", "/opt/ybseo-content-bot/data"))
 STATE_FILE = DATA_DIR / "state.json"
@@ -46,6 +46,7 @@ SOURCES = [
     {"name": "Search Engine Land", "url": "https://searchengineland.com/", "feed": "https://searchengineland.com/feed"},
 ]
 RUN = {"stage": "starting", "started": time.time(), "topic": None, "words": 0, "sources": 0, "attempts": 0}
+CONTENT_DIRECTIVE = "Anahtar kelimesi birbirine benzeyen yazıları eşleyip tüm içerikleri aldıktan sonra özgünleştir, Türkçe'ye çevir ve en az 1500 kelimelik bir yazı haline getir."
 
 
 def log(message: str) -> None:
@@ -132,6 +133,11 @@ def existing_posts() -> list[dict]:
     return response.json()
 
 
+def keywords(title: str) -> set[str]:
+    stop = {"what", "with", "from", "that", "this", "your", "into", "about", "best", "guide", "ways", "using", "nasıl", "nedir", "için", "veya", "olan", "the", "and", "seo"}
+    return {word for word in slugify(title).split("-") if len(word) > 3 and word not in stop}
+
+
 def choose_topic(candidates: list[dict], posts: list[dict], used: set[str]) -> dict:
     existing = " ".join(BeautifulSoup(p["title"]["rendered"], "html.parser").get_text() for p in posts).lower()
     blocked = ("jobs", "podcast", "webinar", "event", "pricing", "discount", "release notes")
@@ -139,9 +145,12 @@ def choose_topic(candidates: list[dict], posts: list[dict], used: set[str]) -> d
     for item in candidates:
         if item["url"] in used or any(word in item["title"].lower() for word in blocked):
             continue
-        words = [w for w in slugify(item["title"]).split("-") if len(w) > 4]
+        words = list(keywords(item["title"]))
         overlap = sum(1 for word in words if word in existing)
-        item["score"] = len(set(words)) - overlap * 2 + random.random()
+        related = sum(len(set(words) & keywords(other["title"])) for other in candidates if other["source"] != item["source"])
+        if related == 0:
+            continue
+        item["score"] = related * 3 + len(set(words)) - overlap * 2 + random.random()
         scored.append(item)
     if not scored:
         raise RuntimeError("Uygun yeni konu bulunamadı")
@@ -158,18 +167,18 @@ def article_text(url: str) -> str:
 
 
 def related_research(topic: dict, candidates: list[dict]) -> list[dict]:
-    keys = set(slugify(topic["title"]).split("-"))
-    ranked = sorted(candidates, key=lambda x: len(keys & set(slugify(x["title"]).split("-"))), reverse=True)
+    keys = keywords(topic["title"])
+    ranked = sorted(candidates, key=lambda x: len(keys & keywords(x["title"])), reverse=True)
     selected = [topic]
     for item in ranked:
-        if item["url"] != topic["url"] and item["source"] not in {x["source"] for x in selected}:
+        if item["url"] != topic["url"] and len(keys & keywords(item["title"])) > 0 and item["source"] not in {x["source"] for x in selected}:
             selected.append(item)
-        if len(selected) == 3:
+        if len(selected) == 4:
             break
     research = []
     for item in selected:
         try:
-            research.append({**item, "text": article_text(item["url"])[:3500]})
+            research.append({**item, "text": article_text(item["url"])[:6000]})
         except Exception as exc:
             log(f"Makale okunamadı ({item['url']}): {exc}")
     return research
@@ -192,12 +201,12 @@ def add_section(article: dict, heading: str, instruction: str) -> dict:
     prompt = f"""'{article['title']}' başlıklı SEO yazısına yeni bir bölüm yaz.
 Başlık tam olarak: {heading}
 Amaç: {instruction}
-180-260 Türkçe kelime kullan. <h2>, <h3>, <p>, <ul> ve <li> dışında etiket kullanma.
+260-380 Türkçe kelime kullan. <h2>, <h3>, <p>, <ul> ve <li> dışında etiket kullanma.
 Mevcut yazıyı tekrarlama, doğrulanmamış sayı veya iddia uydurma. Kaynaklar bölümü ekleme.
 
 MEVCUT METİNDEN ÖZET:
 {existing}"""
-    fragment = ollama_text(prompt)
+    fragment = ollama_text(prompt, 1100)
     if not fragment.lower().startswith("<h2"):
         fragment = f"<h2>{html.escape(heading)}</h2>" + fragment
     marker = re.search(r"<h2[^>]*>\s*Kaynaklar\s*</h2>", article["content_html"], flags=re.I)
@@ -214,9 +223,11 @@ def generate_article(topic: dict, research: list[dict], posts: list[dict]) -> di
     prompt = f"""YBSEO adlı Türk SEO ajansı için özgün, öğretici ve profesyonel bir blog yazısı hazırla.
 Konu fikri: {topic['title']}
 
+Kullanıcı yönergesi: {CONTENT_DIRECTIVE}
+
 Kurallar:
 - Kaynak cümlelerini çevirmeden veya kopyalamadan bilgileri sentezle.
-- En az {MIN_WORDS}, en fazla 1000 Türkçe kelime kullan. Kısa özet üretme; her ana bölümü somut örneklerle açıkla.
+- En az {MIN_WORDS}, en fazla 1900 Türkçe kelime kullan. Kısa özet üretme; her ana bölümü somut örneklerle açıkla.
 - Türkiye'deki işletme, WordPress veya haber sitesi bağlamında somut öneriler ekle.
 - H1 kullanma. İçerikte H2 ve gerektiğinde H3, paragraflar, maddeler ve bir kontrol listesi kullan.
 - Doğrulanamayan sayı, tarih, alıntı veya başarı vaadi uydurma.
@@ -240,7 +251,7 @@ MEVCUT YBSEO YAZILARI:
         RUN["stage"] = "expansion"; RUN["attempts"] = 2
         track("running", f"İlk sürüm {RUN['words']} kelime; otomatik genişletme başladı", words=RUN["words"])
         expand = f"""Aşağıdaki Türkçe SEO yazısı yalnızca {article_word_count(article)} kelime ve fazla kısa.
-JSON yapısını aynen koruyarak content_html alanını en az {MIN_WORDS}, en fazla 1000 kelimeye genişlet.
+JSON yapısını aynen koruyarak content_html alanını en az {MIN_WORDS}, en fazla 1900 kelimeye genişlet.
 Her H2 altında ayrıntılı açıklama, uygulanabilir adımlar ve örnek ekle. Yeni olgu, sayı veya kaynak uydurma.
 Mevcut kaynak bağlantılarını ve dahili bağlantıları koru. Yalnızca geçerli JSON döndür.
 
@@ -248,9 +259,13 @@ Mevcut kaynak bağlantılarını ve dahili bağlantıları koru. Yalnızca geçe
         article = ollama_json([{"role": "system", "content": "Sen deneyimli bir Türk SEO editörüsün. Yalnızca geçerli JSON üret."}, {"role": "user", "content": expand}], 2600)
         RUN["words"] = article_word_count(article)
     enrichment = [
+        ("Kavramın Temelleri ve Çalışma Mantığı", "Kaynaklardaki ortak bilgileri sentezleyerek kavramın temelini ve çalışma mantığını ayrıntılı açıkla."),
         ("Uygulama Adımları", "Okurun konuyu kendi sitesinde uygulayabilmesi için sıralı ve somut adımlar ver."),
         ("Yaygın Hatalar ve Kontrol Listesi", "Yaygın yanlışları açıkla ve uygulanabilir bir kontrol listesi sun."),
         ("WordPress ve Haber Siteleri İçin Öneriler", "Konuyu Türkiye'deki WordPress ve haber sitelerine uyarlayan pratik öneriler ver."),
+        ("Ölçümleme ve Başarı Kriterleri", "Sonuçların hangi metriklerle ve hangi düzenli kontrollerle değerlendirileceğini açıkla."),
+        ("İleri Seviye Uygulamalar", "Deneyimli ekiplerin kullanabileceği ileri seviye ama doğrulanabilir uygulama önerileri ver."),
+        ("Adım Adım Uygulama Senaryosu", "Türkiye'deki örnek bir işletme veya haber sitesi için baştan sona uygulama senaryosu oluştur."),
     ]
     for heading, instruction in enrichment:
         if article_word_count(article) >= MIN_WORDS:
