@@ -1,0 +1,10 @@
+[Unit]
+Description=Check whether YBSEO needs a new article
+
+[Timer]
+OnCalendar=*-*-* 08:15:00 Europe/Istanbul
+Persistent=true
+RandomizedDelaySec=30m
+
+[Install]
+WantedBy=timers.target

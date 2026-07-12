@@ -1,0 +1,13 @@
+[Unit]
+Description=YBSEO automatic content bot
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/ybseo-content-bot
+EnvironmentFile=/opt/ybseo-content-bot/config.env
+ExecStart=/opt/ybseo-content-bot/.venv/bin/python /opt/ybseo-content-bot/bot.py
+Nice=10
+TimeoutStartSec=45min
