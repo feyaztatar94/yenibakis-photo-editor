@@ -296,6 +296,18 @@ def validate(article: dict, research: list[dict]) -> None:
     article["slug"] = slugify(article["slug"] or article["title"])
 
 
+def ensure_source_links(article: dict, research: list[dict]) -> dict:
+    missing = [item for item in research if item["url"] not in article.get("content_html", "")]
+    if not missing:
+        return article
+    links = "".join(
+        f'<li><a href="{html.escape(item["url"], quote=True)}" rel="nofollow noopener" target="_blank">{html.escape(item["source"])} — {html.escape(item["title"])}</a></li>'
+        for item in missing
+    )
+    article["content_html"] += f"<h2>Ek Kaynaklar</h2><ul>{links}</ul>"
+    return article
+
+
 def font(size: int, bold: bool = False):
     name = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
     return ImageFont.truetype(f"/usr/share/fonts/truetype/dejavu/{name}", size)
@@ -393,6 +405,7 @@ def main() -> None:
         RUN["sources"] = len(research)
         if len(research) < 2: raise RuntimeError("En az iki kaynak okunamadı")
         article = generate_article(topic, research, posts)
+        article = ensure_source_links(article, research)
         (DATA_DIR / "latest-attempt.json").write_text(json.dumps({"topic": topic, "research": research, "article": article, "metrics": RUN}, ensure_ascii=False, indent=2), encoding="utf-8")
         validate(article, research)
         RUN["words"] = article_word_count(article); RUN["stage"] = "quality_passed"
