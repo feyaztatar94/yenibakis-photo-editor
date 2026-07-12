@@ -19,7 +19,7 @@ export default function LoginForm() {
       });
       const result = (await response.json()) as { message?: string };
       if (!response.ok) return setError(result.message ?? "Giriş yapılamadı.");
-      window.location.assign("/resizer");
+      window.location.assign("/");
     } catch {
       setError("Bağlantı kurulamadı. Lütfen tekrar deneyin.");
     } finally {

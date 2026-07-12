@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Editör Girişi | Yeni Bakış Görs
 
 export default async function LoginPage() {
   const store = await cookies();
-  if (await isValidSession(store.get(COOKIE_NAME)?.value)) redirect("/resizer");
+  if (await isValidSession(store.get(COOKIE_NAME)?.value)) redirect("/");
   return (
     <main className="login-page">
       <section className="login-card">
