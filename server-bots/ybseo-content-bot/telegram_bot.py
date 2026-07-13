@@ -92,7 +92,16 @@ def topic_pack(state: dict) -> None:
     posts = bot.existing_posts(); candidates = []
     for source in bot.SOURCES: candidates.extend(bot.parse_feed(source) or bot.scrape_index(source))
     topic = bot.choose_topic(candidates, posts, set())
-    research = bot.related_research(topic, candidates)
+    topic_keys = bot.keywords(topic["title"])
+    ranked = sorted(candidates, key=lambda x: len(topic_keys & bot.keywords(x["title"])), reverse=True)
+    research = [topic]
+    for item in ranked:
+        if item["url"] == topic["url"] or item["source"] in {x["source"] for x in research}:
+            continue
+        if topic_keys & bot.keywords(item["title"]):
+            research.append(item)
+        if len(research) == 4:
+            break
     if len(research) < 2: raise RuntimeError("Eşleşen en az iki kaynak bulunamadı")
     state["topic"] = {"title": topic["title"], "sources": [{"source": x["source"], "title": x["title"], "url": x["url"]} for x in research]}
     state["source_urls"] = [x["url"] for x in research]
