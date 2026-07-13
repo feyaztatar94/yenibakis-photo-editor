@@ -16,7 +16,7 @@ Bot benzer konudaki kaynakları paket halinde Telegram'a gönderir. Nihai yazıy
 1. `/konu` ile eşleşen kaynak yazıları alın.
 2. `/yazi` yazıp nihai metni mesaj, `.txt`, `.md`, `.html` veya `.docx` olarak gönderin.
 3. İsterseniz görselleri gönderin; ilk görsel kapak olur.
-4. `/bitir` ile SEO/HTML önizlemesini hazırlatın. Tam önizleme Telegram'a ve e-postaya gelir.
+4. En az `MIN_WORDS` (varsayılan 1.500) kelimelik metni `/bitir` ile SEO/HTML önizlemesine dönüştürün. Tam önizleme Telegram'a ve e-postaya gelir.
 5. `/duzelt talimat` ile yalnızca belirttiğiniz değişikliği yaptırın.
 6. `/taslak`, `/yayinla` veya `/zamanla GG.AA.YYYY SS:DD` komutlarından birini kullanın.
 

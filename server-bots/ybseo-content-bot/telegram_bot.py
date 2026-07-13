@@ -136,7 +136,9 @@ def document_text(message: dict) -> str:
 
 def format_article(state: dict) -> None:
     raw = "\n\n".join(state["article_parts"]).strip()
-    if len(raw.split()) < 250: raise ValueError("Yazı çok kısa; en az 250 kelimelik nihai metin gönderin")
+    word_count = len(re.findall(r"\b\w+\b", BeautifulSoup(raw, "html.parser").get_text(" ")))
+    if word_count < bot.MIN_WORDS:
+        raise ValueError(f"Yazı çok kısa ({word_count} kelime); en az {bot.MIN_WORDS} kelimelik nihai metin gönderin")
     internal = bot.existing_posts()[:30]
     user = f"""Aşağıdaki metni YBSEO için WordPress'e uygun hale getir.
 Metni yeniden yazma, yeni bilgi veya kaynak üretme, anlamı koru. Doğru H2/H3 hiyerarşisi ve SEO alanları oluştur. Kritik sorun varsa ready_to_publish=false döndür.
