@@ -1,0 +1,17 @@
+[Unit]
+Description=YBSEO Telegram editor bot
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ybseo-content-bot
+EnvironmentFile=/opt/ybseo-content-bot/config.env
+ExecStart=/opt/ybseo-content-bot/.venv/bin/python /opt/ybseo-content-bot/telegram_bot.py
+Restart=always
+RestartSec=5
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
