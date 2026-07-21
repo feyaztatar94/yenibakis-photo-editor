@@ -179,14 +179,19 @@ export default function ImageEditor({ tool }: { tool: Tool }) {
   }
 
   function pointerDown(event: PointerEvent<HTMLCanvasElement>) {
-    if (tool !== "crop") return;
+    if (tool === "resize") return;
     event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = { px: event.clientX, py: event.clientY, x: transform.x, y: transform.y };
   }
   function pointerMove(event: PointerEvent<HTMLCanvasElement>) {
-    if (!dragRef.current || !canvasRef.current || tool !== "crop") return;
-    const ratio = OUTPUT_WIDTH / canvasRef.current.getBoundingClientRect().width;
-    updateTransform({ x: dragRef.current.x + (event.clientX - dragRef.current.px) * ratio, y: dragRef.current.y + (event.clientY - dragRef.current.py) * ratio });
+    if (!dragRef.current || !canvasRef.current || tool === "resize") return;
+    const bounds = canvasRef.current.getBoundingClientRect();
+    const ratioX = OUTPUT_WIDTH / bounds.width;
+    const ratioY = OUTPUT_HEIGHT / bounds.height;
+    updateTransform({
+      x: dragRef.current.x + (event.clientX - dragRef.current.px) * ratioX,
+      y: dragRef.current.y + (event.clientY - dragRef.current.py) * ratioY,
+    });
   }
   function pointerUp() { dragRef.current = null; }
 
@@ -215,7 +220,7 @@ export default function ImageEditor({ tool }: { tool: Tool }) {
     ? ["TOPLU BOYUTLANDIRMA", "Fotoğrafları tek ölçüyle boyutlandırın", "İstediğiniz kadar fotoğraf ekleyin; en-boy oranını bozmadan ortak genişliğe dönüştürün, her dosyanın haberle ilişkili adını düzenleyin ve WebP olarak tek tek ya da topluca indirin."]
     : tool === "crop"
       ? ["16:9 KIRPMA", "Kadrajı mouse ile belirleyin", "Fotoğrafı canvas üzerinde mouse ile sürükleyerek haberin odak noktasını seçin; ölçek çubuğuyla yakınlaştırın ve ekranda gördüğünüz kadrajı tam 1280×720 WebP olarak indirin."]
-      : ["FOTOĞRAF TAMAMLAMA", "Fotoğrafı beyaz 1280×720 zemine yerleştirin", "Dikey fotoğrafı beyaz 1280×720 canvasın tam merkezine yerleştirin. Ölçek çubuğuyla kompozisyonu bozmadan büyütüp küçültün; boş kalan alanlar temiz beyaz zemin olarak korunur."];
+      : ["FOTOĞRAF TAMAMLAMA", "Fotoğrafı beyaz 1280×720 zemine yerleştirin", "Fotoğrafı oranını bozmadan beyaz 1280×720 canvasın merkezine yerleştirin. Mouse ile sürükleyerek konumlandırın, ölçek çubuğuyla büyütüp küçültün; boş kalan alanlar temiz beyaz zemin olarak korunur."];
 
   return <main className="app-shell">
     <ToolHeader active={tool} />
@@ -234,7 +239,7 @@ export default function ImageEditor({ tool }: { tool: Tool }) {
       <section className="editor panel" onDragOver={(event) => event.preventDefault()} onDrop={dropFiles}>
         {active ? tool === "resize"
           ? <img className="resize-preview" src={active.url} alt={active.file.name} />
-          : <div className={`canvas-wrap ${tool === "crop" ? "is-draggable" : ""}`}><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} /></div>
+          : <div className="canvas-wrap is-draggable"><canvas ref={canvasRef} width={OUTPUT_WIDTH} height={OUTPUT_HEIGHT} aria-label={tool === "crop" ? "Kırpma önizlemesi" : "Tamamlama önizlemesi"} data-offset-x={Math.round(transform.x)} data-offset-y={Math.round(transform.y)} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} /></div>
           : <button className="dropzone" onClick={() => fileInput.current?.click()}><b>Görselleri buraya bırakın</b><span>veya bilgisayarınızdan seçin</span></button>}
         <footer>{active ? `${active.file.name} · ${active.width}×${active.height}` : "JPG, PNG, WebP ve AVIF"}</footer>
       </section>
@@ -242,7 +247,7 @@ export default function ImageEditor({ tool }: { tool: Tool }) {
       <aside className="settings panel">
         <div className="panel-heading"><b>Dosya ve dışa aktarma</b></div>
         {tool === "resize" && <label className="field"><span>Ortak genişlik</span><div className="pixel-input"><input type="number" min="100" max="10000" value={resizeWidth} onChange={(event) => setResizeWidth(Math.min(10000, Math.max(100, Number(event.target.value) || 100)))} /><b>px</b></div></label>}
-        {tool !== "resize" && <><div className="fixed-size"><span>Çıktı ölçüsü</span><b>1280 × 720 px</b></div><label className="field"><span>Ölçek: %{Math.round(transform.scale * 100)}</span><input type="range" min={tool === "complete" ? 40 : 100} max="250" value={Math.round(transform.scale * 100)} onChange={(event) => updateTransform({ scale: Number(event.target.value) / 100 })} /></label>{tool === "crop" && <button className="reset-button" onClick={() => updateTransform({ x: 0, y: 0, scale: 1 })}>Kadrajı ortala</button>}</>}
+        {tool !== "resize" && <><div className="fixed-size"><span>Çıktı ölçüsü</span><b>1280 × 720 px</b></div><label className="field"><span>Ölçek: %{Math.round(transform.scale * 100)}</span><input type="range" min={tool === "complete" ? 40 : 100} max="250" value={Math.round(transform.scale * 100)} onChange={(event) => updateTransform({ scale: Number(event.target.value) / 100 })} /></label><button className="reset-button" onClick={() => updateTransform({ x: 0, y: 0, scale: 1 })}>{tool === "crop" ? "Kadrajı ortala" : "Fotoğrafı ortala"}</button></>}
         <label className="field seo-field"><span>Dosya Adı</span><input type="text" value={active ? names[active.id] ?? "" : ""} disabled={!active} placeholder="örnek-haber-fotografi" onChange={(event) => active && setNames((current) => ({ ...current, [active.id]: event.target.value }))} /><small>Haberi açıklayan kelimeler kullanın. Türkçe karakterler ve boşluklar indirmede otomatik düzeltilir.</small></label>
         <label className="field"><span>WebP kalitesi: %{quality}</span><input type="range" min="40" max="100" value={quality} onChange={(event) => setQuality(Number(event.target.value))} /></label>
         <div className="size-estimate"><span>Tahmini boyut:</span><b>{estimatedSize ? formatBytes(estimatedSize) : "—"}</b></div>
